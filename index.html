@@ -71,7 +71,6 @@
     </div>
 
 <script>
-    // Theme Logic
     function toggleTheme() {
         const isChecked = document.getElementById('theme-checkbox').checked;
         const theme = isChecked ? 'light' : 'dark';
@@ -85,7 +84,6 @@
         document.getElementById('theme-checkbox').checked = true;
     }
 
-    // Simulation Logic
     let points = [];
     let lastLevel = 3.0;
     
@@ -99,27 +97,22 @@
         const time = new Date().toLocaleTimeString();
         const isDanger = currentLevel >= threshold;
 
-        // Update Text
         document.getElementById('cur-depth').innerText = currentLevel.toFixed(2) + " m";
         document.getElementById('cur-speed').innerText = speed + " m/s";
         const status = document.getElementById('cur-status');
         
-        // CHANGED: "NOMINAL" to "NORMAL"
         status.innerText = isDanger ? "CRITICAL" : "NORMAL";
         status.style.color = isDanger ? "var(--danger)" : "var(--success)";
 
-        // Update Threshold Line Y position
         const threshY = 300 - (threshold * 30);
         document.getElementById('thresh-line').setAttribute('y1', threshY);
         document.getElementById('thresh-line').setAttribute('y2', threshY);
 
-        // Update Graph Points
         points = points.map(p => ({ x: p.x - 20, y: p.y }));
         points.push({ x: 1000, y: 300 - (currentLevel * 30) });
         if (points.length > 55) points.shift();
         document.getElementById('water-path').setAttribute('points', points.map(p => `${p.x},${p.y}`).join(' '));
 
-        // Update Table
         const tableBody = document.querySelector('#logTable tbody');
         const row = `<tr>
             <td>${time}</td>
@@ -130,7 +123,6 @@
         tableBody.insertAdjacentHTML('afterbegin', row);
         if (tableBody.children.length > 8) tableBody.lastElementChild.remove();
 
-        // Save to LocalStorage
         let logs = JSON.parse(localStorage.getItem('tubbog_db')) || [];
         logs.push({ date: new Date().toLocaleDateString(), time, level: currentLevel.toFixed(2), speed });
         if(logs.length > 100) logs.shift();
@@ -141,4 +133,5 @@
     simulate();
 </script>
 </body>
+
 </html>
