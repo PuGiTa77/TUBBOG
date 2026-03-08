@@ -52,7 +52,6 @@
     </div>
 
     <script>
-        // Apply saved theme
         const savedTheme = localStorage.getItem('tubbog_theme');
         if (savedTheme === 'light') document.documentElement.setAttribute('data-theme', 'light');
 
@@ -61,8 +60,7 @@
             const logs = JSON.parse(localStorage.getItem('tubbog_db')) || [];
             
             document.getElementById('log-count').innerText = `${logs.length} records found`;
-            
-            // Reverse logs to show newest first
+
             tableBody.innerHTML = logs.reverse().map(log => `
                 <tr>
                     <td>${log.date}</td>
@@ -103,4 +101,5 @@
         loadLogs();
     </script>
 </body>
+
 </html>
