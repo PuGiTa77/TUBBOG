@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TUBBOG | Historical Logs</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <h2>TUBBOG</h2>
+            <p style="font-size: 12px; color: var(--text-dim);">Team Nepo Babies</p>
+            
+            <nav class="nav-links">
+                <a href="index.html" class="nav-item">📊 Live Dashboard</a>
+                <a href="tubbog_logs.html" class="nav-item active">📂 Historical Logs</a>
+            </nav>
+
+            <div style="margin-top: 20px;">
+                <button onclick="downloadCSV()" style="width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                    📥 Export to CSV
+                </button>
+                <button onclick="clearLogs()" style="width: 100%; padding: 10px; background: transparent; color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px;">
+                    🗑️ Clear All Logs
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="log-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0;">Full Historical Records</h3>
+                    <span id="log-count" style="font-size: 12px; color: var(--text-dim);">0 records found</span>
+                </div>
+                <table id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>DATE</th>
+                            <th>TIME</th>
+                            <th>LEVEL (m)</th>
+                            <th>SPEED (m/s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Apply saved theme
+        const savedTheme = localStorage.getItem('tubbog_theme');
+        if (savedTheme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+
+        function loadLogs() {
+            const tableBody = document.querySelector('#historyTable tbody');
+            const logs = JSON.parse(localStorage.getItem('tubbog_db')) || [];
+            
+            document.getElementById('log-count').innerText = `${logs.length} records found`;
+            
+            // Reverse logs to show newest first
+            tableBody.innerHTML = logs.reverse().map(log => `
+                <tr>
+                    <td>${log.date}</td>
+                    <td>${log.time}</td>
+                    <td>${log.level}</td>
+                    <td>${log.speed}</td>
+                </tr>
+            `).join('');
+        }
+
+        function clearLogs() {
+            if(confirm("Are you sure you want to delete all historical data?")) {
+                localStorage.removeItem('tubbog_db');
+                loadLogs();
+            }
+        }
+
+        function downloadCSV() {
+            const logs = JSON.parse(localStorage.getItem('tubbog_db')) || [];
+            if(logs.length === 0) return alert("No data to export!");
+
+            let csv = "Date,Time,Level,Speed\n";
+            logs.forEach(log => {
+                csv += `${log.date},${log.time},${log.level},${log.speed}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'tubbog_water_logs.csv');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        loadLogs();
+    </script>
+</body>
+</html>
