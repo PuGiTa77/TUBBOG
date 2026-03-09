@@ -7,99 +7,120 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
     <div class="dashboard-container">
         <aside class="sidebar">
             <h2>TUBBOG</h2>
-            <p style="font-size: 12px; color: var(--text-dim);">Team Nepo Babies</p>
-            
+
+            <div id="theme-toggle" class="theme-switch-wrapper">
+                <span id="theme-icon">🌙</span>
+                <span id="theme-text">Dark Mode</span>
+            </div>
+
             <nav class="nav-links">
                 <a href="index.html" class="nav-item">📊 Live Dashboard</a>
                 <a href="tubbog_logs.html" class="nav-item active">📂 Historical Logs</a>
             </nav>
 
+            <div class="calendar-wrapper">
+                <div class="calendar-header">
+                    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+                    <span id="monthYear">March 2026</span>
+                    <button class="nav-btn" onclick="changeMonth(1)">›</button>
+                </div>
+                <div class="calendar-grid">
+                    <div class="day-name">Mo</div><div class="day-name">Tu</div><div class="day-name">We</div>
+                    <div class="day-name">Th</div><div class="day-name">Fr</div><div class="day-name">Sa</div>
+                    <div class="day-name">Su</div>
+                </div>
+                <div id="calendarDays" class="calendar-grid"></div>
+                <div class="calendar-footer" style="margin-top:10px;">
+                    <button class="reset-btn" style="width:100%; padding:8px; background:#4e73df; color:white; border:none; border-radius:5px; cursor:pointer;" onclick="resetFilter()">Show All</button>
+                </div>
+            </div>
+
             <div style="margin-top: 20px;">
-                <button onclick="downloadCSV()" style="width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
-                    📥 Export to CSV
-                </button>
-                <button onclick="clearLogs()" style="width: 100%; padding: 10px; background: transparent; color: var(--danger); border: 1px solid var(--danger); border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px;">
-                    🗑️ Clear All Logs
-                </button>
+                <button onclick="downloadCSV()" style="width:100%; padding:10px; background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">📥 Export CSV</button>
+                <button onclick="clearLogs()" style="width:100%; padding:10px; background:transparent; color:var(--danger); border:1px solid var(--danger); border-radius:8px; cursor:pointer; font-weight:bold; margin-top:10px;">🗑️ Clear Logs</button>
             </div>
         </aside>
 
         <main class="main-content">
             <div class="log-section">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h3 style="margin: 0;">Full Historical Records</h3>
-                    <span id="log-count" style="font-size: 12px; color: var(--text-dim);">0 records found</span>
+                <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+                    <h3 style="margin:0;">Historical Records</h3>
+                    <span id="log-count" style="font-size:12px; color:var(--text-dim);">0 records</span>
                 </div>
                 <table id="historyTable">
-                    <thead>
-                        <tr>
-                            <th>DATE</th>
-                            <th>TIME</th>
-                            <th>LEVEL (m)</th>
-                            <th>SPEED (m/s)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Data injected here -->
-                    </tbody>
+                    <thead><tr><th>DATE</th><th>TIME</th><th>LEVEL (m)</th><th>SPEED (m/s)</th></tr></thead>
+                    <tbody></tbody>
                 </table>
             </div>
         </main>
     </div>
 
     <script>
-        const savedTheme = localStorage.getItem('tubbog_theme');
-        if (savedTheme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+        const themeBtn = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const themeText = document.getElementById('theme-text');
 
-        function loadLogs() {
-            const tableBody = document.querySelector('#historyTable tbody');
-            const logs = JSON.parse(localStorage.getItem('tubbog_db')) || [];
-            
-            document.getElementById('log-count').innerText = `${logs.length} records found`;
-
-            tableBody.innerHTML = logs.reverse().map(log => `
-                <tr>
-                    <td>${log.date}</td>
-                    <td>${log.time}</td>
-                    <td>${log.level}</td>
-                    <td>${log.speed}</td>
-                </tr>
-            `).join('');
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('tubbog_theme', theme);
+            themeIcon.innerText = theme === 'light' ? '☀️' : '🌙';
+            themeText.innerText = theme === 'light' ? 'Light Mode' : 'Dark Mode';
         }
 
-        function clearLogs() {
-            if(confirm("Are you sure you want to delete all historical data?")) {
-                localStorage.removeItem('tubbog_db');
-                loadLogs();
+        themeBtn.addEventListener('click', () => {
+            const newTheme = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+            applyTheme(newTheme);
+        });
+
+        applyTheme(localStorage.getItem('tubbog_theme') || 'dark');
+
+        let currentViewDate = new Date();
+        let selectedFilterDate = null;
+
+        function renderCalendar() {
+            const daysContainer = document.getElementById('calendarDays');
+            daysContainer.innerHTML = '';
+            const year = currentViewDate.getFullYear();
+            const month = currentViewDate.getMonth();
+            document.getElementById('monthYear').innerText = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(currentViewDate);
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            let startOffset = firstDay === 0 ? 6 : firstDay - 1;
+            for (let i = 0; i < startOffset; i++) daysContainer.innerHTML += `<div class="day empty"></div>`;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(year, month, d);
+                const dateStr = dateObj.toLocaleDateString();
+                const isSelected = selectedFilterDate === dateStr ? 'selected' : '';
+                daysContainer.innerHTML += `<div class="day ${isSelected}" onclick="selectDate('${dateStr}')">${d}</div>`;
             }
         }
 
+        function changeMonth(dir) { currentViewDate.setMonth(currentViewDate.getMonth() + dir); renderCalendar(); }
+        function selectDate(dateStr) { selectedFilterDate = dateStr; renderCalendar(); loadLogs(); }
+        function loadLogs() {
+            const tableBody = document.querySelector('#historyTable tbody');
+            let logs = JSON.parse(localStorage.getItem('tubbog_db')) || [];
+            if (selectedFilterDate) logs = logs.filter(log => log.date === selectedFilterDate);
+            document.getElementById('log-count').innerText = `${logs.length} records found`;
+            tableBody.innerHTML = logs.length ? [...logs].reverse().map(log => `<tr><td>${log.date}</td><td>${log.time}</td><td>${log.level}</td><td>${log.speed}</td></tr>`).join('') : '<tr><td colspan="4" style="text-align:center; padding:20px;">No records.</td></tr>';
+        }
+        function resetFilter() { selectedFilterDate = null; renderCalendar(); loadLogs(); }
+        function clearLogs() { if(confirm("Delete all data?")) { localStorage.removeItem('tubbog_db'); loadLogs(); } }
         function downloadCSV() {
             const logs = JSON.parse(localStorage.getItem('tubbog_db')) || [];
-            if(logs.length === 0) return alert("No data to export!");
-
-            let csv = "Date,Time,Level,Speed\n";
-            logs.forEach(log => {
-                csv += `${log.date},${log.time},${log.level},${log.speed}\n`;
-            });
-
+            let csv = "Date,Time,Level,Speed\n" + logs.map(l => `${l.date},${l.time},${l.level},${l.speed}`).join("\n");
             const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.setAttribute('hidden', '');
-            a.setAttribute('href', url);
-            a.setAttribute('download', 'tubbog_water_logs.csv');
-            document.body.appendChild(a);
+            a.href = URL.createObjectURL(blob);
+            a.download = 'tubbog_logs.csv';
             a.click();
-            document.body.removeChild(a);
         }
 
+        renderCalendar();
         loadLogs();
     </script>
 </body>
-
 </html>
