@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TUBBOG | Statistical Report</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .chart-card { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <h2>TUBBOG</h2>
+            <button id="theme-toggle" style="width: 100%; padding: 10px; margin-bottom: 20px; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-main); font-weight: bold; transition: all 0.3s;">🌓 Toggle Theme</button>
+            <nav class="nav-links">
+                <a href="index.html" class="nav-item">📊 Live Dashboard</a>
+                <a href="tubbog_logs.html" class="nav-item">📂 Historical Logs</a>
+                <a href="tubbog_stats.html" class="nav-item active">📈 Statistical Report</a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="dashboard-header">
+                <div>
+                    <h1>Statistical Overview</h1>
+                    <p style="color: var(--text-dim); margin: 5px 0 0 0; font-size: 14px;">Data analysis and system health metrics</p>
+                </div>
+                <div style="font-weight: bold; color: var(--text-dim); background: var(--card-bg); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border);">Total Records: <span id="total-records-badge" style="color: var(--text-main);">0</span></div>
+            </header>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div style="color: var(--text-dim); font-size: 11px; font-weight: bold;">CRITICAL ALERTS</div>
+                    <div class="stat-value" id="stat-critical" style="color: var(--danger); font-size: 24px; font-weight: bold; margin-top: 5px;">0</div>
+                </div>
+                <div class="stat-card">
+                    <div style="color: var(--text-dim); font-size: 11px; font-weight: bold;">WARNING ALERTS</div>
+                    <div class="stat-value" id="stat-warning" style="color: var(--warning); font-size: 24px; font-weight: bold; margin-top: 5px;">0</div>
+                </div>
+                <div class="stat-card">
+                    <div style="color: var(--text-dim); font-size: 11px; font-weight: bold;">AVG SYSTEM FLOW</div>
+                    <div class="stat-value" id="stat-avg-flow" style="color: var(--primary); font-size: 24px; font-weight: bold; margin-top: 5px;">0.00 L/m</div>
+                </div>
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-card"><h3 style="margin-top: 0; margin-bottom: 15px; font-size: 14px; color: var(--text-dim);">System Status Distribution</h3><canvas id="statusPieChart"></canvas></div>
+                <div class="chart-card"><h3 style="margin-top: 0; margin-bottom: 15px; font-size: 14px; color: var(--text-dim);">Average Level per Sensor (m)</h3><canvas id="sensorBarChart"></canvas></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const themeBtn = document.getElementById('theme-toggle');
+        const currentTheme = localStorage.getItem('theme');
+        if (currentTheme === 'light') document.body.classList.add('light-mode');
+        themeBtn.addEventListener('click', () => {
+            document.body.classList.toggle('light-mode');
+            localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+            setTimeout(() => location.reload(), 100); 
+        });
+
+        const DB_KEY = 'tubbog_db_v2';
+        const logs = JSON.parse(localStorage.getItem(DB_KEY)) || [];
+
+        function calculateStats() {
+            if (logs.length === 0) return;
+            document.getElementById('total-records-badge').innerText = logs.length;
+            let critical = 0, warning = 0, normal = 0, totalFlow = 0, flowCount = 0;
+            let sensorData = { sensor1: [], sensor2: [], sensor3: [] };
+
+            logs.forEach(log => {
+                if (log.status === "CRITICAL") critical++; else if (log.status === "WARNING") warning++; else normal++;
+                if (log.sensor === "flow_sensor") { totalFlow += parseFloat(log.flow); flowCount++; }
+                if (sensorData[log.sensor]) sensorData[log.sensor].push(parseFloat(log.level));
+            });
+
+            document.getElementById('stat-critical').innerText = critical;
+            document.getElementById('stat-warning').innerText = warning;
+            document.getElementById('stat-avg-flow').innerText = (flowCount > 0 ? (totalFlow / flowCount).toFixed(2) : "0.00") + " L/m";
+            const getAvg = arr => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2) : 0;
+            renderCharts(normal, warning, critical, [getAvg(sensorData.sensor1), getAvg(sensorData.sensor2), getAvg(sensorData.sensor3)]);
+        }
+
+        function renderCharts(normal, warning, critical, sensorAverages) {
+            const textColor = document.body.classList.contains('light-mode') ? '#1a1a1b' : '#ffffff';
+            new Chart(document.getElementById('statusPieChart'), {
+                type: 'doughnut',
+                data: { labels: ['Normal', 'Warning', 'Critical'], datasets: [{ data: [normal, warning, critical], backgroundColor: ['#00e676', '#f1c40f', '#ff4d4d'], borderWidth: 0 }] },
+                options: { responsive: true, plugins: { legend: { labels: { color: textColor } } } }
+            });
+            new Chart(document.getElementById('sensorBarChart'), {
+                type: 'bar',
+                data: { labels: ['Sensor 1', 'Sensor 2', 'Sensor 3'], datasets: [{ label: 'Average Level (m)', data: sensorAverages, backgroundColor: '#3498db', borderRadius: 5 }] },
+                options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: 'rgba(128, 128, 128, 0.2)' } }, x: { ticks: { color: textColor }, grid: { display: false } } }, plugins: { legend: { display: false } } }
+            });
+        }
+        calculateStats();
+    </script>
+</body>
+</html>
