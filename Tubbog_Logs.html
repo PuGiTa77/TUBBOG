@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TUBBOG | Historical Logs</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -11,116 +10,120 @@
         <aside class="sidebar">
             <h2>TUBBOG</h2>
 
-            <div id="theme-toggle" class="theme-switch-wrapper">
-                <span id="theme-icon">🌙</span>
-                <span id="theme-text">Dark Mode</span>
-            </div>
+            <button id="theme-toggle" style="width: 100%; padding: 10px; margin-bottom: 20px; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-main); font-weight: bold; transition: all 0.3s;">
+                🌓 Toggle Theme
+            </button>
 
             <nav class="nav-links">
                 <a href="index.html" class="nav-item">📊 Live Dashboard</a>
                 <a href="tubbog_logs.html" class="nav-item active">📂 Historical Logs</a>
+                <a href="tubbog_stats.html" class="nav-item">📈 Statistical Report</a>
             </nav>
 
-            <div class="calendar-wrapper">
+            <div class="calendar-wrapper" style="margin-top: 20px;">
                 <div class="calendar-header">
-                    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
-                    <span id="monthYear">March 2026</span>
-                    <button class="nav-btn" onclick="changeMonth(1)">›</button>
+                    <button onclick="changeMonth(-1)">‹</button>
+                    <span id="monthYear"></span>
+                    <button onclick="changeMonth(1)">›</button>
                 </div>
                 <div class="calendar-grid">
-                    <div class="day-name">Mo</div><div class="day-name">Tu</div><div class="day-name">We</div>
-                    <div class="day-name">Th</div><div class="day-name">Fr</div><div class="day-name">Sa</div>
-                    <div class="day-name">Su</div>
+                    <div class="day-name">M</div><div class="day-name">T</div><div class="day-name">W</div><div class="day-name">T</div><div class="day-name">F</div><div class="day-name">S</div><div class="day-name">S</div>
                 </div>
                 <div id="calendarDays" class="calendar-grid"></div>
-                <div class="calendar-footer" style="margin-top:10px;">
-                    <button class="reset-btn" style="width:100%; padding:8px; background:#4e73df; color:white; border:none; border-radius:5px; cursor:pointer;" onclick="resetFilter()">Show All</button>
-                </div>
+                <button onclick="resetFilter()" style="margin-top:10px;width:100%; padding: 8px; background: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer;">Show All</button>
             </div>
 
-            <div style="margin-top: 20px;">
-                <button onclick="downloadCSV()" style="width:100%; padding:10px; background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">📥 Export CSV</button>
-                <button onclick="clearLogs()" style="width:100%; padding:10px; background:transparent; color:var(--danger); border:1px solid var(--danger); border-radius:8px; cursor:pointer; font-weight:bold; margin-top:10px;">🗑️ Clear Logs</button>
+            <div style="margin-top:auto">
+                <button onclick="downloadCSV()" style="width:100%;padding:10px;margin-top:10px; background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: 5px; cursor: pointer;">📥 Export CSV</button>
+                <button onclick="clearLogs()" style="width:100%;padding:10px;margin-top:10px;color:red; background: var(--card-bg); border: 1px solid var(--border); border-radius: 5px; cursor: pointer;">🗑️ Clear Logs</button>
             </div>
         </aside>
 
         <main class="main-content">
-            <div class="log-section">
-                <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-                    <h3 style="margin:0;">Historical Records</h3>
-                    <span id="log-count" style="font-size:12px; color:var(--text-dim);">0 records</span>
+            <header class="dashboard-header">
+                <div>
+                    <h1>Historical Records</h1>
+                    <p style="color: var(--text-dim); margin: 5px 0 0 0; font-size: 14px;">Review past sensor data and alerts</p>
                 </div>
-                <table id="historyTable">
-                    <thead><tr><th>DATE</th><th>TIME</th><th>LEVEL (m)</th><th>SPEED (m/s)</th></tr></thead>
-                    <tbody></tbody>
-                </table>
+                <div style="font-weight: bold; color: var(--text-dim); background: var(--card-bg); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border);">
+                    <span id="log-count">0 records</span>
+                </div>
+            </header>
+
+            <div class="log-section">
+                <div class="log-table-wrapper">
+                    <table id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>DATE & TIME</th>
+                                <th>SENSOR</th>
+                                <th>LEVEL</th>
+                                <th>FLOW</th>
+                                <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
         </main>
     </div>
 
     <script>
         const themeBtn = document.getElementById('theme-toggle');
-        const themeIcon = document.getElementById('theme-icon');
-        const themeText = document.getElementById('theme-text');
-
-        function applyTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            localStorage.setItem('tubbog_theme', theme);
-            themeIcon.innerText = theme === 'light' ? '☀️' : '🌙';
-            themeText.innerText = theme === 'light' ? 'Light Mode' : 'Dark Mode';
-        }
+        const currentTheme = localStorage.getItem('theme');
+        if (currentTheme === 'light') document.body.classList.add('light-mode');
 
         themeBtn.addEventListener('click', () => {
-            const newTheme = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-            applyTheme(newTheme);
+            document.body.classList.toggle('light-mode');
+            localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
         });
-
-        applyTheme(localStorage.getItem('tubbog_theme') || 'dark');
 
         let currentViewDate = new Date();
         let selectedFilterDate = null;
+        const DB_KEY = 'tubbog_db_v2';
 
-        function renderCalendar() {
+        function renderCalendar(){
             const daysContainer = document.getElementById('calendarDays');
             daysContainer.innerHTML = '';
-            const year = currentViewDate.getFullYear();
-            const month = currentViewDate.getMonth();
-            document.getElementById('monthYear').innerText = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(currentViewDate);
-            const firstDay = new Date(year, month, 1).getDay();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            let startOffset = firstDay === 0 ? 6 : firstDay - 1;
-            for (let i = 0; i < startOffset; i++) daysContainer.innerHTML += `<div class="day empty"></div>`;
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dateObj = new Date(year, month, d);
-                const dateStr = dateObj.toLocaleDateString();
-                const isSelected = selectedFilterDate === dateStr ? 'selected' : '';
-                daysContainer.innerHTML += `<div class="day ${isSelected}" onclick="selectDate('${dateStr}')">${d}</div>`;
+            const year = currentViewDate.getFullYear(), month = currentViewDate.getMonth();
+            document.getElementById('monthYear').innerText = new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric'}).format(currentViewDate);
+            const firstDay = new Date(year,month,1).getDay();
+            const daysInMonth = new Date(year,month+1,0).getDate();
+            let offset = firstDay === 0 ? 6 : firstDay-1;
+            for(let i=0;i<offset;i++) daysContainer.innerHTML += `<div class="day empty"></div>`;
+            for(let d=1; d<=daysInMonth; d++){
+                const dateStr = new Date(year,month,d).toLocaleDateString();
+                const selected = selectedFilterDate===dateStr ? 'selected':'';
+                daysContainer.innerHTML += `<div class="day ${selected}" onclick="selectDate('${dateStr}')">${d}</div>`;
             }
         }
 
-        function changeMonth(dir) { currentViewDate.setMonth(currentViewDate.getMonth() + dir); renderCalendar(); }
-        function selectDate(dateStr) { selectedFilterDate = dateStr; renderCalendar(); loadLogs(); }
-        function loadLogs() {
-            const tableBody = document.querySelector('#historyTable tbody');
-            let logs = JSON.parse(localStorage.getItem('tubbog_db')) || [];
-            if (selectedFilterDate) logs = logs.filter(log => log.date === selectedFilterDate);
-            document.getElementById('log-count').innerText = `${logs.length} records found`;
-            tableBody.innerHTML = logs.length ? [...logs].reverse().map(log => `<tr><td>${log.date}</td><td>${log.time}</td><td>${log.level}</td><td>${log.speed}</td></tr>`).join('') : '<tr><td colspan="4" style="text-align:center; padding:20px;">No records.</td></tr>';
-        }
-        function resetFilter() { selectedFilterDate = null; renderCalendar(); loadLogs(); }
-        function clearLogs() { if(confirm("Delete all data?")) { localStorage.removeItem('tubbog_db'); loadLogs(); } }
-        function downloadCSV() {
-            const logs = JSON.parse(localStorage.getItem('tubbog_db')) || [];
-            let csv = "Date,Time,Level,Speed\n" + logs.map(l => `${l.date},${l.time},${l.level},${l.speed}`).join("\n");
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'tubbog_logs.csv';
-            a.click();
+        function changeMonth(dir){ currentViewDate.setMonth(currentViewDate.getMonth()+dir); renderCalendar(); }
+        function selectDate(dateStr){ selectedFilterDate=dateStr; renderCalendar(); loadLogs(); }
+        function resetFilter(){ selectedFilterDate=null; renderCalendar(); loadLogs(); }
+
+        function loadLogs(){
+            const tableBody=document.querySelector('#historyTable tbody');
+            let logs=JSON.parse(localStorage.getItem(DB_KEY))||[];
+            if(selectedFilterDate) logs=logs.filter(l=>l.date===selectedFilterDate);
+            document.getElementById('log-count').innerText= `${logs.length} records found`;
+            tableBody.innerHTML = logs.length ? [...logs].reverse().map(l=>{
+                let statusClass= l.status==="CRITICAL" ? "status-critical" : l.status==="WARNING" ? "status-warning" : "status-normal";
+                return `<tr><td>${l.date} ${l.time}</td><td class="sensor-label">${l.sensor.toUpperCase()}</td><td>${l.level} m</td><td>${l.flow}</td><td class="${statusClass}">${l.status}</td></tr>`;
+            }).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;">No records.</td></tr>';
         }
 
-        renderCalendar();
-        loadLogs();
+        function clearLogs(){ if(confirm("Delete all logs?")){ localStorage.removeItem(DB_KEY); loadLogs(); } }
+        function downloadCSV(){
+            const logs=JSON.parse(localStorage.getItem(DB_KEY))||[];
+            let csv="Date,Time,Sensor,Level,Flow,Status\n" + logs.map(l=>`${l.date},${l.time},${l.sensor},${l.level},${l.flow},${l.status}`).join("\n");
+            const blob=new Blob([csv],{type:'text/csv'});
+            const a=document.createElement('a');
+            a.href=URL.createObjectURL(blob); a.download='tubbog_logs.csv'; a.click();
+        }
+
+        renderCalendar(); loadLogs();
     </script>
 </body>
 </html>
