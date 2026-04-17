@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<title>Analytics Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+<div class="dashboard-container">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2>TUBBOG</h2>
+
+  <button id="theme-toggle" style="width: 100%; padding: 10px; margin-bottom: 20px; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-main); font-weight: bold; transition: all 0.3s;">
+                    🌓 Toggle Theme
+                 </button>
+
+   <nav class="nav-links" style="margin-top:20px;">
+    <a href="/" class="nav-item">📊 Live Dashboard</a>
+    <a href="/logs" class="nav-item">📂 Historical Logs</a>
+    <a href="/stats" class="nav-item active">📈 Statistical Report</a>
+</nav>
+    <div class="compare-box">
+        <h3>📊 Compare Months</h3>
+
+        <label>Month A</label>
+        <select id="monthA">
+            <option value="1">Jan</option>
+            <option value="2">Feb</option>
+            <option value="3">Mar</option>
+            <option value="4" selected>Apr</option>
+        </select>
+
+        <label>Month B</label>
+        <select id="monthB">
+            <option value="1">Jan</option>
+            <option value="2" selected>Feb</option>
+            <option value="3">Mar</option>
+            <option value="4">Apr</option>
+        </select>
+
+        <input type="number" id="year" value="2026" style="width: 90%;">
+
+        <button onclick="compareMonths()">Compare</button>
+    </div>
+</div>  
+
+<!-- MAIN -->
+<div class="main-content">
+
+<h1>📊 Analytics Dashboard</h1>
+
+<div class="chart-wrapper">
+
+    <div class="chart-card">
+        <h3>SENSOR 1 WATER TREND</h3>
+        <canvas id="chartS1"></canvas>
+    </div>
+
+    <div class="chart-card">
+        <h3>SENSOR 2 WATER TREND</h3>
+        <canvas id="chartS2"></canvas>
+    </div>
+
+ <div class="chart-card">
+        <h3>SENSOR 3 WATER TREND</h3>
+        <canvas id="chartS3"></canvas>
+    </div>
+
+    <div class="chart-card">
+        <h3>💧 Flow Comparison</h3>
+        <canvas id="chartFlow"></canvas>
+    </div>
+</div>
+
+</div>
+</div>
+
+<script>
+let chartS1, chartS2, chartS3, chartFlow;
+
+// 🎨 SAFE GRADIENT (does NOT break hover)
+function createGradient(ctx, color) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, color + "55"); // light top
+    gradient.addColorStop(1, color + "00"); // fade bottom
+    return gradient;
+}
+
+// 🔥 CHART FACTORY (keeps default hover behavior)
+function makeChart(canvasId, labels, dataA, dataB, colorA, colorB) {
+    const ctx = document.getElementById(canvasId).getContext("2d");
+
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: "Month A",
+                    data: dataA,
+                    borderColor: colorA,
+                    backgroundColor: createGradient(ctx, colorA),
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 3,
+                    pointRadius: 3,     // 👈 IMPORTANT: keeps hover working
+                    pointHoverRadius: 6 // 👈 smoother hover
+                },
+                {
+                    label: "Month B",
+                    data: dataB,
+                    borderColor: colorB,
+                    backgroundColor: createGradient(ctx, colorB),
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            // 🚫 DO NOT TOUCH THIS (keeps hover working)
+            interaction: {
+                mode: 'nearest',
+                intersect: false
+            },
+
+            plugins: {
+                legend: {
+                    labels: { color: "#ccc" }
+                },
+                tooltip: {
+                    enabled: true // 👈 KEEP TOOLTIP
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: "#888" },
+                    grid: { color: "rgba(255,255,255,0.05)" }
+                },
+                y: {
+                    ticks: { color: "#888" },
+                    grid: { color: "rgba(255,255,255,0.05)" }
+                }
+            }
+        }
+    });
+}
+
+async function compareMonths() {
+    const mA = document.getElementById("monthA").value;
+    const mB = document.getElementById("monthB").value;
+    const year = document.getElementById("year").value;
+
+    const res = await fetch(`/api/compare-months?monthA=${mA}&monthB=${mB}&year=${year}`);
+    const data = await res.json();
+
+    if(chartS1) chartS1.destroy();
+    if(chartS2) chartS2.destroy();
+    if(chartS3) chartS3.destroy();
+    if(chartFlow) chartFlow.destroy();
+
+    // SAME COLORS (your working theme)
+    chartS1 = makeChart("chartS1", data.A.labels, data.A.s1, data.B.s1,
+        "#4e73df", "#1cc88a"
+    );
+
+    chartS2 = makeChart("chartS2", data.A.labels, data.A.s2, data.B.s2,
+        "#36b9cc", "#f6c23e"
+    );
+
+    chartS3 = makeChart("chartS3", data.A.labels, data.A.s3, data.B.s3,
+        "#858796", "#e74a3b"
+    );
+
+    chartFlow = makeChart("chartFlow", data.A.labels, data.A.flow, data.B.flow,
+        "#f6c23e", "#e74a3b"
+    );
+}
+
+// 🌙 THEME TOGGLE (UNCHANGED)
+const toggleBtn = document.getElementById("theme-toggle");
+
+const savedTheme = localStorage.getItem("theme");
+if(savedTheme){
+    document.documentElement.setAttribute("data-theme", savedTheme);
+}
+
+toggleBtn.onclick = () => {
+    const current = document.documentElement.getAttribute("data-theme");
+    const newTheme = current === "light" ? "dark" : "light";
+
+    document.documentElement.setAttribute("data-theme", newTheme);
+    localStorage.setItem("theme", newTheme);
+};
+</script>
+
+</body>
+</html>
