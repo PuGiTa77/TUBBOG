@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<title>Analytics Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="/static/style.css">
+
+</head>
+<body>
+
+<div class="dashboard-container">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2>TUBBOG</h2>
+
+    <button id="theme-toggle" style="width: 100%; padding: 10px; margin-bottom: 20px; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-main); font-weight: bold; transition: all 0.3s;">
+                    Toggle Theme
+                 </button> 
+
+    <nav class="nav-links" style="margin-top:20px">
+        <a href="/" class="nav-item">Live Dashboard</a>
+        <a href="/logs" class="nav-item">Historical Logs</a>
+        <a href="/stats" class="nav-item active">Statistical Report</a>
+    </nav>
+
+    <div class="compare-box">
+        <h3>Compare Months</h3>
+
+        <label>Month A</label>
+        <select id="monthA">
+            <option value="1">January</option>
+            <option value="2">February</option>
+            <option value="3">March</option>
+            <option value="4">April</option>
+            <option value="5">May</option>
+            <option value="6">June</option>
+            <option value="7">July</option>
+            <option value="8">August</option>
+            <option value="9">September</option>
+            <option value="10">October</option>
+            <option value="11">November</option>
+            <option value="12">December</option>
+        </select>
+
+        <label>Month B</label>
+        <select id="monthB">
+            <option value="1">January</option>
+            <option value="2">February</option>
+            <option value="3">March</option>
+            <option value="4">April</option>
+            <option value="5">May</option>
+            <option value="6">June</option>
+            <option value="7">July</option>
+            <option value="8">August</option>
+            <option value="9">September</option>
+            <option value="10">October</option>
+            <option value="11">November</option>
+            <option value="12">December</option>
+        </select>
+
+        <label>Year</label>
+        <input type="number" id="year" value="2026"style="width: 90%">
+
+        <button onclick="compareMonths()">Compare</button>
+    </div>
+</div>
+
+<!-- MAIN -->
+<div class="main-content">
+<h1>Analytics Dashboard</h1>
+
+<div class="chart-wrapper">
+
+    <div class="chart-card">
+        <h3>Sensor 1</h3>
+        <canvas id="chartS1"></canvas>
+    </div>
+
+    <div class="chart-card">
+        <h3>Sensor 2</h3>
+        <canvas id="chartS2"></canvas>
+    </div>
+
+    <div class="chart-card">
+        <h3>Sensor 3</h3>
+        <canvas id="chartS3"></canvas>
+    </div>
+
+    <div class="chart-card">
+        <h3>Flow Sensor</h3>
+        <canvas id="chartFlow"></canvas>
+    </div>
+
+</div>
+</div>
+
+<script>
+let chartS1, chartS2, chartS3, chartFlow;
+
+function createGradient(ctx, color) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, color + "55");
+    gradient.addColorStop(1, color + "00");
+    return gradient;
+}
+
+function makeChart(canvasId, labels, dataA, dataB, colorA, colorB) {
+    const ctx = document.getElementById(canvasId).getContext("2d");
+
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: "Month A",
+                    data: dataA,
+                    borderColor: colorA,
+                    backgroundColor: createGradient(ctx, colorA),
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: "Month B",
+                    data: dataB,
+                    borderColor: colorB,
+                    backgroundColor: createGradient(ctx, colorB),
+                    fill: true,
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    labels: { color: "#ccc" }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: "#aaa" },
+                    grid: { color: "rgba(255,255,255,0.05)" }
+                },
+                y: {
+                    ticks: { color: "#aaa" },
+                    grid: { color: "rgba(255,255,255,0.05)" }
+                }
+            }
+        }
+    });
+}
+
+async function compareMonths() {
+    try {
+        const mA = document.getElementById("monthA").value;
+        const mB = document.getElementById("monthB").value;
+        const year = document.getElementById("year").value;
+
+        const res = await fetch(`/api/compare-months?monthA=${mA}&monthB=${mB}&year=${year}`);
+        const data = await res.json();
+
+        console.log("COMPARE DATA:", data);
+
+        // 🔥 CHECK EMPTY DATA PROPERLY
+        const noA = !data.monthA || !data.monthA.labels || data.monthA.labels.length === 0;
+        const noB = !data.monthB || !data.monthB.labels || data.monthB.labels.length === 0;
+
+        if (noA && noB) {
+            showAlert("No data available for BOTH Month A and Month B.");
+            return;
+        }
+
+        if (noA) {
+            showAlert("Month A has no data. Showing Month B only.");
+        }
+
+        if (noB) {
+            showAlert("Month B has no data. Showing Month A only.");
+        }
+
+        // destroy old charts
+        if(chartS1) chartS1.destroy();
+        if(chartS2) chartS2.destroy();
+        if(chartS3) chartS3.destroy();
+        if(chartFlow) chartFlow.destroy();
+
+        const labels = (!noA ? data.monthA.labels : data.monthB.labels);
+
+        chartS1 = makeChart(
+            "chartS1",
+            labels,
+            noA ? [] : data.monthA.s1,
+            noB ? [] : data.monthB.s1,
+            "#4e73df",
+            "#1cc88a"
+        );
+
+        chartS2 = makeChart(
+            "chartS2",
+            labels,
+            noA ? [] : data.monthA.s2,
+            noB ? [] : data.monthB.s2,
+            "#36b9cc",
+            "#f6c23e"
+        );
+
+        chartS3 = makeChart(
+            "chartS3",
+            labels,
+            noA ? [] : data.monthA.s3,
+            noB ? [] : data.monthB.s3,
+            "#858796",
+            "#e74a3b"
+        );
+
+        chartFlow = makeChart(
+            "chartFlow",
+            labels,
+            noA ? [] : data.monthA.flow,
+            noB ? [] : data.monthB.flow,
+            "#f6c23e",
+            "#e74a3b"
+        );
+
+    } catch (err) {
+        console.error(err);
+        showAlert("Error fetching data.");
+    }
+}
+
+/*  FIXED ALERT FUNCTION */
+function showAlert(message) {
+    const alertBox = document.getElementById("customAlert");
+    const msg = document.getElementById("alertMessage");
+
+    msg.innerText = message;
+    alertBox.classList.remove("hidden");
+
+    document.body.style.overflow = "hidden";
+}
+
+function closeAlert() {
+    const alertBox = document.getElementById("customAlert");
+
+    alertBox.classList.add("hidden");
+
+    document.body.style.overflow = "auto";
+}
+
+/* GLOBAL ERROR */
+window.onerror = function() {
+    showAlert("Unexpected system error occurred.");
+};
+
+// TOGGLE THEME
+const toggleBtn = document.getElementById("theme-toggle");
+
+const savedTheme = localStorage.getItem("theme");
+if(savedTheme){
+    document.documentElement.setAttribute("data-theme", savedTheme);
+}
+
+toggleBtn.onclick = () => {
+    const current = document.documentElement.getAttribute("data-theme");
+    const newTheme = current === "light" ? "dark" : "light";
+
+    document.documentElement.setAttribute("data-theme", newTheme);
+    localStorage.setItem("theme", newTheme);
+};
+</script>
+
+
+<div id="customAlert" class="alert-overlay hidden">
+    <div class="alert-box">
+        <h2>⚠️ Alert</h2>
+        <p id="alertMessage"></p>
+        <button onclick="closeAlert()">OK</button>
+    </div>
+
+</body>
+</html> 

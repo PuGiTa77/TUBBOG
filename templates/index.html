@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TUBBOG | Live Dashboard</title>
+
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+<div class="dashboard-container">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+    <h2>TUBBOG</h2>
+
+      <button id="theme-toggle" style="width: 100%; padding: 10px; margin-bottom: 20px; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-main); font-weight: bold;">
+        Toggle Theme
+    </button>
+
+    <nav class="nav-links" style="margin-top:20px;">
+        <a href="/" class="nav-item active">Live Dashboard</a>
+        <a href="/logs" class="nav-item">Historical Logs</a>
+        <a href="/stats" class="nav-item">Statistical Report</a>
+    </nav>
+
+    <div class="compare-box">
+        <label>VIEW MODE</label>
+        <select id="view-select">
+            <option value="sensor1">Sensor 1</option>
+            <option value="sensor2">Sensor 2</option>
+            <option value="sensor3">Sensor 3</option>
+            <option value="flow_sensor">Flow Sensor</option>
+            <option value="all" selected>All Sensors</opti  on>
+        </select>
+    </div>
+
+    <div class="phone-card">
+        <h3> Telegram Chat ID</h3>
+        <input type="text" id="phoneInput" placeholder="Enter Telegram ID">
+        <button onclick="savePhone()">Save ID</button>
+        <p id="phoneStatus"></p>
+    </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main-content">
+
+<header>
+    <h1>Live Monitoring</h1>
+    <div id="live-clock"></div>
+</header>
+<!-- STATS -->
+<div class="stats-grid">
+
+    <div class="stat-card compact">
+        <span>CURRENT LEVEL</span>
+        <h2 id="cur-depth">0.00 m</h2>
+    </div>
+
+    <div class="stat-card compact">
+        <span>FLOW RATE</span>
+        <h2 id="cur-flow">0.00</h2>
+    </div>
+
+    <div class="stat-card compact status-sensor">
+
+        <div class="status-row">
+            <span>SYSTEM STATUS</span>
+            <span id="cur-status" class="badge NORMAL">NORMAL</span>
+        </div>
+
+        <div class="sensor-row">
+            <div class="sensor-pill" id="ind-s1">
+                <span class="dot"></span> S1 <span id="val-s1">--</span>
+            </div>
+
+            <div class="sensor-pill" id="ind-s2">
+                <span class="dot"></span> S2 <span id="val-s2">--</span>
+            </div>
+
+            <div class="sensor-pill" id="ind-s3">
+                <span class="dot"></span> S3 <span id="val-s3">--</span>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- GRID CONTAINER -->
+<div id="monitor-container" class="chart-wrapper"></div>
+
+</main>
+</div>
+
+<script>
+let charts = {};
+let currentView = "all";
+
+//RENDER CHARTS
+function renderCharts() {
+    const container = document.getElementById("monitor-container");
+
+    const viewMap = {
+        sensor1: ["s1"],
+        sensor2: ["s2"],
+        sensor3: ["s3"],
+        flow_sensor: ["flow"],
+        all: ["s1","s2","s3","flow"]
+    };
+
+    const selected = viewMap[currentView]; 
+
+    //APPLY LAYOUT SWITCH
+    if (selected.length === 1) {
+        container.classList.add("single-view");
+    } else {
+        container.classList.remove("single-view");
+    }
+
+    container.innerHTML = "";
+    charts = {};
+
+    selected.forEach(id => {
+        const title = id === "flow" ? "FLOW SENSOR" : id.toUpperCase();
+
+        container.innerHTML += `
+        <div class="chart-card">
+            <h3>${title}</h3>
+            <canvas id="chart-${id}"></canvas>
+        </div>`;
+    });
+
+    selected.forEach(id => {
+        const colors = {
+            s1: "#4e73df",
+            s2: "#f39c12",
+            s3: "#2ecc71",
+            flow: "#f1c40f"
+        };
+
+        charts[id] = createChart(id, colors[id]);
+    });
+}
+
+//CREATE CHART
+function createChart(id, color) {
+    const ctx = document.getElementById(`chart-${id}`).getContext('2d');
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, color + "88");
+    gradient.addColorStop(1, color + "00");
+
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: id.toUpperCase(),
+                data: [],
+                borderColor: color,
+                backgroundColor: gradient,
+                fill: true,
+                tension: 0.45,
+                pointRadius: 2,
+                pointHoverRadius: 6,
+                borderWidth: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // makes it fit container
+        
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+
+            plugins: {
+                legend: {
+                    labels: { color: "#ccc" }
+                }
+            },
+            layout: {
+                padding: { top: 10, bottom: 10 }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: "#888",
+                        maxRotation: 0,
+                        autoSkip: true,     // prevents crowding
+                        maxTicksLimit: 5   // fits labels nicely
+                    },
+                    grid: { color: "rgba(255,255,255,0.04)" }
+                },
+
+                y: {
+                    beginAtZero: false, 
+                    ticks: { color: "#888" },
+                    grid: { color: "rgba(255,255,255,0.04)" }
+                }
+            }
+        }
+    });
+}
+// ALARM STATE TRACKER
+let lastAlarmStatus = "";
+
+function updateClock() {
+    const now = new Date();
+
+    const timeString = now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+
+    document.getElementById("live-clock").innerText = timeString;
+}
+
+async function loadData() {
+    const res = await fetch("/data");
+    const data = await res.json();
+    
+    const time = new Date().toLocaleTimeString();
+
+    const view = document.getElementById("view-select").value;
+
+    let currentLevel = 0;
+
+    const s1 = parseFloat(data.s1) || 0;
+    const s2 = parseFloat(data.s2) || 0;
+    const s3 = parseFloat(data.s3) || 0;
+
+    // remove invalid (0) sensors
+    const valid = [s1, s2, s3].filter(v => v > 0);
+    currentLevel = Math.max(s1, s2, s3);
+
+    if (view === "sensor1") {
+        currentLevel = s1;
+    }
+    else if (view === "sensor2") {
+        currentLevel = s2;
+    }
+    else if (view === "sensor3") {
+        currentLevel = s3;
+    }
+    else if (view === "all") {
+        currentLevel = valid.length
+            ? valid.reduce((a,b)=>a+b,0) / valid.length
+            : 0;
+    }
+
+    document.getElementById("cur-depth").innerText =
+    currentLevel.toFixed(2) + " m";
+    document.getElementById("cur-flow").innerText = data.flow;
+    const statusEl = document.getElementById("cur-status");
+    statusEl.innerText = data.status;
+    statusEl.className = "badge " + data.status;
+
+    // 🚨 ALARM LOGIC
+    if ((data.status === "CRITICAL" || data.status === "WARNING") && data.status !== lastAlarmStatus) {
+
+        let sound = "";
+
+        if (data.status === "CRITICAL") {
+            sound = "https://www.soundjay.com/misc/sounds/alarm-beep-02.mp3";
+        } else if (data.status === "WARNING") {
+            sound = "https://www.soundjay.com/button/sounds/beep-07.mp3";
+        }
+
+        // 🔊 play only if there is a sound
+        if (sound) {
+            const audio = new Audio(sound);
+            audio.play();
+        }
+
+        // 💬 alert
+        showAlert(`⚠️ ALERT: ${data.status} - Check sensors immediately!`);
+
+        lastAlarmStatus = data.status;
+    }
+function showAlert(message) {
+    const alertBox = document.getElementById("customAlert");
+    const msg = document.getElementById("alertMessage");
+
+    msg.innerText = message;
+
+    alertBox.classList.remove("hidden");
+
+    // 🔥 disable background clicks (FIXED)
+    document.body.style.overflow = "hidden";
+
+    // disable charts / canvas clicks
+    document.querySelectorAll("canvas").forEach(c => {
+        c.style.pointerEvents = "none";
+    });
+}
+
+function closeAlert() {
+    const alertBox = document.getElementById("customAlert");
+
+    alertBox.classList.add("hidden");
+
+    // 🔥 restore clicks
+    document.body.style.overflow = "auto";
+
+    document.querySelectorAll("canvas").forEach(c => {
+        c.style.pointerEvents = "auto";
+    });
+}
+
+// ✅ reset when back to normal
+if (data.status === "NORMAL") {
+    lastAlarmStatus = "";
+}
+
+    const map = {
+        s1: data.s1,
+        s2: data.s2,
+        s3: data.s3,
+        flow: data.flow
+    };
+
+    Object.keys(charts).forEach(id => {
+        updateChart(charts[id], time, map[id]);
+    });
+    function getSensorStatus(value) {
+    if (value === 0 || value === -1) return "error";
+    if (value <= 4.5) return "critical";
+    if (value <= 6.5) return "warning";
+    return "normal";
+    }   
+}
+
+function updateIndicators(data) {
+    const sensors = {
+        s1: data.s1,
+        s2: data.s2,
+        s3: data.s3
+    };
+
+    Object.keys(sensors).forEach(key => {
+        const el = document.getElementById("ind-" + key);
+        const value = parseFloat(sensors[key]) || 0;
+        el.title = `Value: ${value} m`;
+
+        let status = "normal";
+
+        if (value === 0 || value === -1) status = "error";
+        else if (value <= 4.5) status = "critical";
+        else if (value <= 6.5) status = "warning";
+
+        el.className = "sensor-pill " + status;
+    });
+    document.getElementById("val-s1").innerText = data.s1.toFixed(2) + "m";
+    document.getElementById("val-s2").innerText = data.s2.toFixed(2) + "m";
+    document.getElementById("val-s3").innerText = data.s3.toFixed(2) + "m"; 
+}
+//SAVE TELEGRAM IDs
+async function savePhone() {
+    const input = document.getElementById("phoneInput");
+    const status = document.getElementById("phoneStatus");
+
+    const telegram_id = input.value.trim();
+
+    // EMPTY CHECK
+    if (!telegram_id) {
+        status.innerText = "Enter Telegram ID";
+        showAlert("⚠️ Enter Telegram ID");
+        return;
+    }
+
+    //NUMBERS ONLY CHECK
+    if (!/^\d+$/.test(telegram_id)) {
+        status.innerText = "Numbers only (no letters or symbols)";
+        showAlert("⚠️ Numbers only (no letters or symbols)");
+        return;
+    }
+
+    // LENGTH CHECK (EXACTLY 10 DIGITS)
+    if (telegram_id.length < 10) {
+        status.innerText = "Must be exactly 10 digits (too short)";
+        showAlert("⚠️ Must be exactly 10 digits (too short)");
+        return;
+    }
+
+    if (telegram_id.length > 10) {
+        status.innerText = "Must be exactly 10 digits (too long)";
+        showAlert("⚠️ Must be exactly 10 digits (too long)");
+        return;
+    }
+    try {
+    const res = await fetch("/api/add-contact", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ telegram_id })
+    });
+
+    const data = await res.json();
+
+    // ❌ HANDLE ALL ERRORS FROM BACKEND
+    if (!res.ok || data.success === false) {
+        if (status) status.innerText = data.message;
+        showAlert(`❌ ${data.message}`);
+        return;
+    }
+
+    // ✅ SUCCESS
+    if (status) status.innerText = data.message;
+    showAlert(`✅ ${data.message}`);
+    input.value = "";
+
+    } catch (err) {
+    console.error("JS ERROR:", err);
+
+    showAlert("❌ Something went wrong in the UI (not server).");
+}
+}
+
+// ALERT FUNCTION
+let alertTimeout;
+
+function showAlert(message) {
+    const alertBox = document.getElementById("customAlert");
+    const msg = document.getElementById("alertMessage");
+
+    msg.innerText = message;
+
+    alertBox.classList.remove("hidden");
+
+    clearTimeout(alertTimeout);
+
+    alertTimeout = setTimeout(() => {
+        alertBox.classList.add("hidden");
+    }, 3000);
+}
+
+// UPDATE CHART
+function updateChart(chart, label, value) {
+    chart.data.labels.push(label);
+    chart.data.datasets[0].data.push(value);
+
+    if (chart.data.labels.length > 10) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+    }
+
+    chart.update();
+}
+
+// 🎯 VIEW SELECT
+document.getElementById("view-select").addEventListener("change", function() {
+    currentView = this.value;
+    renderCharts();
+});
+
+// INIT
+renderCharts();
+// 🔁 DATA (every 10 sec)
+setInterval(loadData, 10000);
+
+// CLOCK (every 1 sec)
+setInterval(updateClock, 1000);
+
+// run immediately
+updateClock();
+loadData();
+
+// TOGGLE THEME
+const toggleBtn = document.getElementById("theme-toggle");
+
+const savedTheme = localStorage.getItem("theme");
+if(savedTheme){
+    document.documentElement.setAttribute("data-theme", savedTheme);
+}
+
+toggleBtn.onclick = () => {
+    const current = document.documentElement.getAttribute("data-theme");
+    const newTheme = current === "light" ? "dark" : "light";
+
+    document.documentElement.setAttribute("data-theme", newTheme);
+    localStorage.setItem("theme", newTheme);
+}
+</script>
+<div id="customAlert" class="alert-overlay hidden">
+    <div class="alert-box">
+        <h2>⚠️ Alert</h2>
+        <p id="alertMessage"></p>
+        <button onclick="closeAlert()">OK</button>
+    </div>
+</div>
+</body>
+</html> 

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Historical Logs</title>
+
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body>
+
+<div class="dashboard-container">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2>TUBBOG</h2>
+
+    <button id="theme-toggle" style="width: 100%; padding: 10px; margin-bottom: 20px; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-main); font-weight: bold;">
+        Toggle Theme
+    </button>
+
+    <nav class="nav-links" style="margin-top:20px;">
+        <a href="/" class="nav-item">Live Dashboard</a>
+        <a href="/logs" class="nav-item active">Historical Logs</a>
+        <a href="/stats" class="nav-item">Statistical Report</a>
+    </nav>
+
+    <!-- CALENDAR -->
+    <div class="calendar-box">
+        <div class="calendar-header">
+            <button onclick="prevMonth()">‹</button>
+            <span id="monthYear"></span>
+            <button onclick="nextMonth()">›</button>
+        </div>
+        <div id="calendarDays" class="calendar-grid"></div>
+    </div>
+</div>
+
+<!-- MAIN -->
+<div class="main-content">
+
+<h1>Historical Records</h1>
+    <div class="chart-grid">
+    <div class="chart-card">
+        <h3>Water Level Trend</h3>
+        <canvas id="levelChart"></canvas>
+    </div>
+
+    <div class="chart-card pie-card">
+    <h3>Status Distribution</h3>
+    <div class="pie-wrapper">
+        <canvas id="statusChart"></canvas>
+    </div>
+</div>
+
+</div>
+
+<!-- TABLE -->
+<div class="logs-container">
+    <table class="logs-table">
+        <thead>
+            <tr>
+                <th>Date & Time</th>
+                <th>Sensor Data</th>
+                <th>Flow</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="logTable"></tbody>
+    </table>
+</div>
+ <h3 id="modeLabel" style="margin-bottom:10px; color:#4e73df;"></h3>
+</div>
+</div>
+
+<script>
+
+let levelChart, statusChart;
+
+function gradient(ctx, color) {
+    const g = ctx.createLinearGradient(0, 0, 0, 300);
+    g.addColorStop(0, color + "55");
+    g.addColorStop(1, color + "00");
+    return g;
+}
+
+async function loadLogs(selectedDate = null) {
+    let url = "/api/logs";
+
+    if (selectedDate) {
+        url += `?date=${selectedDate}`;
+    }
+
+    try {
+        const res = await fetch(url);
+        const response = await res.json();
+
+        console.log("RESPONSE:", response);
+
+        if (response.status === "empty" || !response.data || response.data.length === 0) {
+            updateTable([]);
+            updateCharts([], [], [], [], [], 0, 0, 0);
+            if (selectedDate) {
+                showAlert(`No data found for ${selectedDate}`);
+            }   
+            return;
+        }
+
+        const logs = response.data;
+
+        // Mode indicator (optional debug)
+        document.getElementById("modeLabel").innerText =
+        response.mode === "raw"
+        ? "📡 Showing RAW Data (Detailed logs within 7 days)"
+        : "📊 Showing HOURLY Data (Aggregated older logs)";
+
+        const timestamps = logs.map(d => d.timestamp);
+        const s1 = logs.map(d => d.s1);
+        const s2 = logs.map(d => d.s2);
+        const s3 = logs.map(d => d.s3);
+        const flow = logs.map(d => d.flow);
+
+        let normal = 0, warning = 0, critical = 0;
+
+        logs.forEach(d => {
+            if (d.status === "NORMAL") normal++;
+            else if (d.status === "WARNING") warning++;
+            else if (d.status === "CRITICAL") critical++;
+        });
+
+        updateTable(logs);
+        updateCharts(timestamps, s1, s2, s3, flow, normal, warning, critical);
+
+    } catch (err) {
+        console.error("❌ Error loading logs:", err);
+    }
+}
+// DYNAMIC Y-AXIS SCALING
+function getMin(...arrays) {
+    const all = arrays.flat().filter(v => v !== null && !isNaN(v));
+    let min = Math.min(...all);
+
+    // 🔥 prevent flat line
+    if (min === Math.max(...all)) {
+        min -= 1;
+    }
+
+    return min - 0.5;
+}
+
+function getMax(...arrays) {
+    const all = arrays.flat().filter(v => v !== null && !isNaN(v));
+    let max = Math.max(...all);
+
+    // prevent flat line
+    if (max === Math.min(...all)) {
+        max += 1;
+    }
+
+    return max + 0.5;
+}
+
+
+function updateCharts(labels, s1, s2, s3, flow, normal, warning, critical){
+
+    if(levelChart) levelChart.destroy();
+    if(statusChart) statusChart.destroy();
+
+    const ctx = document.getElementById("levelChart").getContext("2d");
+
+    levelChart = new Chart(ctx, {
+    type: "line",
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: "Sensor 1",
+                data: s1,
+                borderColor: "#4e73df",
+                backgroundColor: gradient(ctx, "#4e73df"),
+                fill: true,
+                tension: 0.4, // ✅ smooth curve
+                pointRadius: 0,
+                borderWidth: 3
+            },
+            {
+                label: "Sensor 2",
+                data: s2,
+                borderColor: "#f39c12",
+                backgroundColor: gradient(ctx, "#f39c12"),
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                borderWidth: 3
+            },
+            {
+                label: "Sensor 3",
+                data: s3,
+                borderColor: "#2ecc71",
+                backgroundColor: gradient(ctx, "#2ecc71"),
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                borderWidth: 3
+            },
+            {
+                label: "Flow",
+                data: flow,
+                borderColor: "#f1c40f",
+                backgroundColor: gradient(ctx, "#f1c40f"),
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                borderWidth: 3
+            }
+        ]
+    },
+
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+
+        layout: {
+        padding: {
+            top: 10,
+            bottom: 10
+        }
+        },
+
+        interaction: {
+            mode: "index",
+            intersect: false
+        },
+        animations: {
+        tension: {
+            duration: 800,
+            easing: 'easeInOutQuad',
+            from: 0.2,
+            to: 0.4
+        }
+        },
+        plugins: {
+            legend: {
+                display: true,
+                labels: {
+                    color: "#ccc",
+                    font: { size: 20 }
+                }
+            }
+        },
+
+        scales: {
+            x: {
+                ticks: {
+                    display : false
+                },
+                grid: { 
+                    display: false
+                }
+            },
+
+            y: {
+                beginAtZero: true,
+
+                ticks: {
+                    color: "#aaa",
+                    stepSize: 1 
+                },
+                grid: { color: "rgba(255,255,255,0.05)" },
+                grace: 0,
+                bounds: 'data'
+            }
+        }
+    }
+});
+
+    statusChart = new Chart(document.getElementById("statusChart"), {
+    type: "pie",
+    data: {
+        labels: ["Normal", "Warning", "Critical"],
+        datasets: [{
+            data: [normal, warning, critical],
+            backgroundColor: ["#00e676", "#ffcc00", "#ff4d4d"]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false 
+    }
+});
+}
+
+function updateTable(logs){
+    const table = document.getElementById("logTable");
+    table.innerHTML = "";
+
+    logs.forEach(log => {
+        const statusClass = {
+            "NORMAL": "status-normal",
+            "WARNING": "status-warning",
+            "CRITICAL": "status-critical"
+        }[log.status];
+
+        table.innerHTML += `
+            <tr>
+                <td>${log.timestamp}</td>
+                <td>S1:${log.s1} | S2:${log.s2} | S3:${log.s3}</td>
+                <td>${log.flow}</td>
+                <td class="${statusClass}">${log.status}</td>
+            </tr>
+        `;
+    });
+}
+
+/* CALENDAR */
+let current = new Date();
+
+function selectDate(el, date){
+    document.querySelectorAll(".day").forEach(d => d.classList.remove("active-day"));
+    el.classList.add("active-day");
+    loadLogs(date);
+}
+
+function renderCalendar(){
+    const container = document.getElementById("calendarDays");
+    container.innerHTML = "";
+
+    let year = current.getFullYear();
+    let month = current.getMonth();
+
+    document.getElementById("monthYear").innerText =
+        new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric'}).format(current);
+
+    let firstDay = new Date(year, month, 1).getDay();
+    let days = new Date(year, month+1, 0).getDate();
+
+    for(let i=0;i<firstDay;i++) container.innerHTML += `<div></div>`;
+
+    for(let d=1; d<=days; d++){
+        let date = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        container.innerHTML += `
+            <div class="day" onclick="selectDate(this, '${date}')">${d}</div>
+        `;
+    }
+}
+
+function prevMonth(){ current.setMonth(current.getMonth()-1); renderCalendar(); }
+function nextMonth(){ current.setMonth(current.getMonth()+1); renderCalendar(); }
+
+renderCalendar();
+loadLogs();
+// TOGGLE THEME
+const toggleBtn = document.getElementById("theme-toggle");
+
+const savedTheme = localStorage.getItem("theme");
+if(savedTheme){
+    document.documentElement.setAttribute("data-theme", savedTheme);
+}
+
+toggleBtn.onclick = () => {
+    const current = document.documentElement.getAttribute("data-theme");
+    const newTheme = current === "light" ? "dark" : "light";
+
+    document.documentElement.setAttribute("data-theme", newTheme);
+    localStorage.setItem("theme", newTheme);
+};
+// DATA CLEANING (remove nulls, NaNs, and unrealistic spikes)
+function cleanData(arr) {
+    return arr.map(v => {
+        if (v === null || isNaN(v)) return null;
+
+        // remove unrealistic spikes
+        if (v > 50) return null;
+
+        return v;
+    });
+}
+// Alert Function
+let alertTimeout;
+function showAlert(message) {
+    const alertBox = document.getElementById("customAlert");
+    document.getElementById("alertMessage").innerText = message;
+    // Show the alert
+    alertBox.classList.remove("hidden");
+    // clear previous timeout if exists
+    clearTimeout(alertTimeout);
+    //auto hide after 5 seconds
+    alertTimeout = setTimeout(() => {
+        alertBox.classList.add("hidden");
+    }, 3000);
+}
+function closeAlert() {
+    document.getElementById("customAlert").classList.add("hidden");
+}
+</script>
+<div id="customAlert" class="alert-overlay hidden">
+    <div class="alert-box">
+        <h2>⚠️ Alert</h2>
+        <p id="alertMessage"></p>
+        <button onclick="closeAlert()">OK</button>
+    </div>
+</div>
+</body>
+</html>
